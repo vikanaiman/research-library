@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Library</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="gradient-bg"></div>
+    
+    <header class="header">
+        <div class="logo" id="site-title">Research Library</div>
+        <div class="subtitle" id="site-subtitle">Библиотека исследований команды</div>
+    </header>
+
+    <main class="container">
+        <!-- Tag Cloud Filter -->
+        <section class="tag-cloud" id="tag-cloud">
+            <div class="tag-cloud-header">
+                <h2>Фильтр по тегам</h2>
+                <button class="reset-filter" id="reset-filter" style="display: none;">✕ Сбросить фильтр</button>
+            </div>
+            <div class="tag-cloud-groups" id="tag-cloud-groups">
+                <!-- Tag groups will be injected from config.json -->
+            </div>
+        </section>
+
+        <div class="table-wrapper">
+            <table class="articles-table" id="articles-table">
+                <thead>
+                    <tr>
+                        <th class="col-pdf">PDF</th>
+                        <th class="col-title">Название и описание</th>
+                        <th class="col-tags">Теги</th>
+                    </tr>
+                </thead>
+                <tbody id="articles-body">
+                    <!-- Articles will be injected from config.json -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- PDF Preview Modal -->
+    <div class="modal" id="pdf-modal">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">&times;</button>
+            <iframe id="pdf-viewer" src="" frameborder="0"></iframe>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
