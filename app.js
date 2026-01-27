@@ -182,7 +182,8 @@ function toggleTagGroup(btn) {
     btn.textContent = isCollapsed ? `+${totalTags - 12} ещё` : 'Свернуть';
 }
 
-let activeFilter = null;
+// Multi-tag filter - stores active tags by group
+let activeFilters = {}; // { groupKey: Set of tags }
 
 function initTagFilter() {
     const resetBtn = document.getElementById('reset-filter');
@@ -195,49 +196,123 @@ function initTagFilter() {
         const tagValue = tagEl.dataset.tag;
         const groupKey = tagEl.dataset.group;
         
-        // Toggle filter
-        if (activeFilter && activeFilter.tag === tagValue && activeFilter.group === groupKey) {
-            clearFilter();
-        } else {
-            applyFilter(tagValue, groupKey, tagEl);
-        }
+        toggleTagFilter(tagValue, groupKey, tagEl);
     });
     
     // Reset button
-    resetBtn.addEventListener('click', clearFilter);
+    resetBtn.addEventListener('click', clearAllFilters);
 }
 
-function applyFilter(tagValue, groupKey, tagEl) {
-    activeFilter = { tag: tagValue, group: groupKey };
+function toggleTagFilter(tagValue, groupKey, tagEl) {
+    // Initialize set for group if not exists
+    if (!activeFilters[groupKey]) {
+        activeFilters[groupKey] = new Set();
+    }
     
-    // Highlight active tag
-    document.querySelectorAll('.tag-cloud .tag').forEach(t => t.classList.remove('active'));
-    tagEl.classList.add('active');
+    // Toggle tag in the set
+    if (activeFilters[groupKey].has(tagValue)) {
+        activeFilters[groupKey].delete(tagValue);
+        tagEl.classList.remove('active');
+        
+        // Clean up empty groups
+        if (activeFilters[groupKey].size === 0) {
+            delete activeFilters[groupKey];
+        }
+    } else {
+        activeFilters[groupKey].add(tagValue);
+        tagEl.classList.add('active');
+    }
     
-    // Show reset button
-    document.getElementById('reset-filter').style.display = 'block';
+    // Update reset button visibility
+    const hasActiveFilters = Object.keys(activeFilters).length > 0;
+    document.getElementById('reset-filter').style.display = hasActiveFilters ? 'block' : 'none';
     
-    // Filter table rows
+    // Update active filter count display
+    updateFilterCount();
+    
+    // Apply filters to table
+    applyMultiFilter();
+}
+
+function updateFilterCount() {
+    const resetBtn = document.getElementById('reset-filter');
+    const totalActive = Object.values(activeFilters).reduce((sum, set) => sum + set.size, 0);
+    
+    if (totalActive > 0) {
+        resetBtn.textContent = `Сбросить фильтр (${totalActive})`;
+    }
+}
+
+function applyMultiFilter() {
     const rows = document.querySelectorAll('#articles-body tr');
+    const hasActiveFilters = Object.keys(activeFilters).length > 0;
+    
     rows.forEach(row => {
+        if (!hasActiveFilters) {
+            row.classList.remove('hidden');
+            return;
+        }
+        
         const articleId = parseInt(row.dataset.id);
         const article = config.articles.find(a => a.id === articleId);
         
-        if (article) {
-            const tags = article.tags || {};
-            const groupTags = tags[groupKey] || [];
-            const hasTag = groupTags.some(t => t && t.trim() === tagValue);
-            
-            row.classList.toggle('hidden', !hasTag);
+        if (!article) {
+            row.classList.add('hidden');
+            return;
         }
+        
+        const tags = article.tags || {};
+        
+        // Article must match ALL active filter groups (AND between groups)
+        // Within a group, article must match ALL selected tags (AND within group)
+        let matchesAllGroups = true;
+        
+        for (const [groupKey, selectedTags] of Object.entries(activeFilters)) {
+            const articleTags = tags[groupKey] || [];
+            // Check that article has ALL selected tags in this group
+            const matchesGroup = [...selectedTags].every(selectedTag => 
+                articleTags.some(t => t && t.trim() === selectedTag)
+            );
+            
+            if (!matchesGroup) {
+                matchesAllGroups = false;
+                break;
+            }
+        }
+        
+        row.classList.toggle('hidden', !matchesAllGroups);
     });
+    
+    // Update visible count
+    updateVisibleCount();
+    
+    // Update tag availability based on visible articles
+    updateTagAvailability();
 }
 
-function clearFilter() {
-    activeFilter = null;
+function updateVisibleCount() {
+    const totalRows = document.querySelectorAll('#articles-body tr').length;
+    const visibleRows = document.querySelectorAll('#articles-body tr:not(.hidden)').length;
     
-    // Remove active state from tags
-    document.querySelectorAll('.tag-cloud .tag').forEach(t => t.classList.remove('active'));
+    // Update subtitle with count if filtering
+    const subtitle = document.getElementById('site-subtitle');
+    const originalSubtitle = config.site?.subtitle || '';
+    
+    if (Object.keys(activeFilters).length > 0) {
+        subtitle.textContent = `${originalSubtitle} — показано ${visibleRows} из ${totalRows}`;
+    } else {
+        subtitle.textContent = originalSubtitle;
+    }
+}
+
+function clearAllFilters() {
+    activeFilters = {};
+    
+    // Remove active and disabled states from all tags
+    document.querySelectorAll('.tag-cloud .tag').forEach(t => {
+        t.classList.remove('active');
+        t.classList.remove('disabled');
+    });
     
     // Hide reset button
     document.getElementById('reset-filter').style.display = 'none';
@@ -245,6 +320,97 @@ function clearFilter() {
     // Show all rows
     document.querySelectorAll('#articles-body tr').forEach(row => {
         row.classList.remove('hidden');
+    });
+    
+    // Restore original subtitle
+    const subtitle = document.getElementById('site-subtitle');
+    subtitle.textContent = config.site?.subtitle || '';
+}
+
+/**
+ * Update tag availability - disable tags that would result in zero articles
+ */
+function updateTagAvailability() {
+    const hasActiveFilters = Object.keys(activeFilters).length > 0;
+    
+    // If no filters active, enable all tags
+    if (!hasActiveFilters) {
+        document.querySelectorAll('.tag-cloud .tag').forEach(t => {
+            t.classList.remove('disabled');
+        });
+        return;
+    }
+    
+    // Collect all tags from currently visible articles
+    const availableTags = {};
+    TAG_GROUPS.forEach(group => {
+        availableTags[group.key] = new Set();
+    });
+    
+    // Go through visible articles and collect their tags
+    document.querySelectorAll('#articles-body tr:not(.hidden)').forEach(row => {
+        const articleId = parseInt(row.dataset.id);
+        const article = config.articles.find(a => a.id === articleId);
+        if (!article) return;
+        
+        const tags = article.tags || {};
+        TAG_GROUPS.forEach(group => {
+            const tagArray = tags[group.key] || [];
+            tagArray.forEach(tag => {
+                if (tag && tag.trim() && tag.trim() !== '-' && tag.trim() !== '—') {
+                    availableTags[group.key].add(tag.trim());
+                }
+            });
+        });
+    });
+    
+    // Also need to check: for each tag, would adding it to the current filters result in any articles?
+    // This is more complex - we need to simulate adding each tag
+    document.querySelectorAll('.tag-cloud .tag').forEach(tagEl => {
+        const tagValue = tagEl.dataset.tag;
+        const groupKey = tagEl.dataset.group;
+        
+        // If this tag is already active, keep it enabled
+        if (activeFilters[groupKey]?.has(tagValue)) {
+            tagEl.classList.remove('disabled');
+            return;
+        }
+        
+        // Simulate adding this tag to filters and check if any articles match
+        const wouldHaveResults = checkIfTagWouldHaveResults(tagValue, groupKey);
+        tagEl.classList.toggle('disabled', !wouldHaveResults);
+    });
+}
+
+/**
+ * Check if adding a tag to current filters would result in any articles
+ */
+function checkIfTagWouldHaveResults(tagValue, groupKey) {
+    // Create a copy of active filters with the new tag added
+    const testFilters = {};
+    for (const [key, tags] of Object.entries(activeFilters)) {
+        testFilters[key] = new Set(tags);
+    }
+    
+    if (!testFilters[groupKey]) {
+        testFilters[groupKey] = new Set();
+    }
+    testFilters[groupKey].add(tagValue);
+    
+    // Check if any article matches these filters
+    return config.articles.some(article => {
+        const tags = article.tags || {};
+        
+        for (const [filterGroup, selectedTags] of Object.entries(testFilters)) {
+            const articleTags = tags[filterGroup] || [];
+            const matchesGroup = [...selectedTags].every(selectedTag => 
+                articleTags.some(t => t && t.trim() === selectedTag)
+            );
+            
+            if (!matchesGroup) return false;
+        }
+        
+        return true;
     });
 }
 
