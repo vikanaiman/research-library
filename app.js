@@ -329,63 +329,89 @@ function clearAllFilters() {
 
 /**
  * Update tag availability - disable tags that would result in zero articles
+ * and update counts to show how many articles would match
  */
 function updateTagAvailability() {
     const hasActiveFilters = Object.keys(activeFilters).length > 0;
     
-    // If no filters active, enable all tags
+    // If no filters active, restore original counts and enable all tags
     if (!hasActiveFilters) {
+        restoreOriginalCounts();
         document.querySelectorAll('.tag-cloud .tag').forEach(t => {
             t.classList.remove('disabled');
         });
         return;
     }
     
-    // Collect all tags from currently visible articles
-    const availableTags = {};
-    TAG_GROUPS.forEach(group => {
-        availableTags[group.key] = new Set();
+    // For each tag, calculate how many articles would match if selected
+    document.querySelectorAll('.tag-cloud .tag').forEach(tagEl => {
+        const tagValue = tagEl.dataset.tag;
+        const groupKey = tagEl.dataset.group;
+        const countEl = tagEl.querySelector('.tag-count');
+        
+        // If this tag is already active, show current visible count
+        if (activeFilters[groupKey]?.has(tagValue)) {
+            tagEl.classList.remove('disabled');
+            if (countEl) {
+                const currentCount = countArticlesWithTagInCurrent(tagValue, groupKey);
+                countEl.textContent = currentCount;
+            }
+            return;
+        }
+        
+        // Calculate how many articles would match if this tag is added
+        const potentialCount = countArticlesWithTag(tagValue, groupKey);
+        
+        // Update the count display
+        if (countEl) {
+            countEl.textContent = potentialCount;
+        }
+        
+        // Disable if zero results
+        tagEl.classList.toggle('disabled', potentialCount === 0);
     });
+}
+
+/**
+ * Restore original tag counts (total articles with each tag)
+ */
+function restoreOriginalCounts() {
+    const stats = collectTagStats();
     
-    // Go through visible articles and collect their tags
+    document.querySelectorAll('.tag-cloud .tag').forEach(tagEl => {
+        const tagValue = tagEl.dataset.tag;
+        const groupKey = tagEl.dataset.group;
+        const countEl = tagEl.querySelector('.tag-count');
+        
+        if (countEl && stats[groupKey] && stats[groupKey][tagValue]) {
+            countEl.textContent = stats[groupKey][tagValue];
+        }
+    });
+}
+
+/**
+ * Count articles that currently have this tag (among visible articles)
+ */
+function countArticlesWithTagInCurrent(tagValue, groupKey) {
+    let count = 0;
     document.querySelectorAll('#articles-body tr:not(.hidden)').forEach(row => {
         const articleId = parseInt(row.dataset.id);
         const article = config.articles.find(a => a.id === articleId);
         if (!article) return;
         
         const tags = article.tags || {};
-        TAG_GROUPS.forEach(group => {
-            const tagArray = tags[group.key] || [];
-            tagArray.forEach(tag => {
-                if (tag && tag.trim() && tag.trim() !== '-' && tag.trim() !== '—') {
-                    availableTags[group.key].add(tag.trim());
-                }
-            });
-        });
-    });
-    
-    // Also need to check: for each tag, would adding it to the current filters result in any articles?
-    // This is more complex - we need to simulate adding each tag
-    document.querySelectorAll('.tag-cloud .tag').forEach(tagEl => {
-        const tagValue = tagEl.dataset.tag;
-        const groupKey = tagEl.dataset.group;
-        
-        // If this tag is already active, keep it enabled
-        if (activeFilters[groupKey]?.has(tagValue)) {
-            tagEl.classList.remove('disabled');
-            return;
+        const groupTags = tags[groupKey] || [];
+        if (groupTags.some(t => t && t.trim() === tagValue)) {
+            count++;
         }
-        
-        // Simulate adding this tag to filters and check if any articles match
-        const wouldHaveResults = checkIfTagWouldHaveResults(tagValue, groupKey);
-        tagEl.classList.toggle('disabled', !wouldHaveResults);
     });
+    return count;
 }
 
 /**
- * Check if adding a tag to current filters would result in any articles
+ * Count how many articles would match if adding a tag to current filters
  */
-function checkIfTagWouldHaveResults(tagValue, groupKey) {
+function countArticlesWithTag(tagValue, groupKey) {
     // Create a copy of active filters with the new tag added
     const testFilters = {};
     for (const [key, tags] of Object.entries(activeFilters)) {
@@ -397,21 +423,28 @@ function checkIfTagWouldHaveResults(tagValue, groupKey) {
     }
     testFilters[groupKey].add(tagValue);
     
-    // Check if any article matches these filters
-    return config.articles.some(article => {
+    // Count articles matching these filters
+    let count = 0;
+    config.articles.forEach(article => {
         const tags = article.tags || {};
         
+        let matchesAll = true;
         for (const [filterGroup, selectedTags] of Object.entries(testFilters)) {
             const articleTags = tags[filterGroup] || [];
             const matchesGroup = [...selectedTags].every(selectedTag => 
                 articleTags.some(t => t && t.trim() === selectedTag)
             );
             
-            if (!matchesGroup) return false;
+            if (!matchesGroup) {
+                matchesAll = false;
+                break;
+            }
         }
         
-        return true;
+        if (matchesAll) count++;
     });
+    
+    return count;
 }
 
 // PDF Modal
