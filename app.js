@@ -1,47 +1,114 @@
 /**
- * Research Library - Dynamic content loader
+ * Research Library - Dynamic content loader with multi-discipline support
  */
 let config = null;
+let currentDiscipline = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         const response = await fetch('config.json');
         if (!response.ok) throw new Error('Failed to load config');
         config = await response.json();
-        renderPage();
+        
+        // Set site title
+        if (config.site) {
+            document.getElementById('site-title').textContent = config.site.title || '';
+            document.title = config.site.title || 'Research Library';
+        }
+        
+        // Render discipline navigation
+        renderNav();
+        
+        // Determine initial discipline from URL hash or default to first
+        const hash = location.hash.replace('#', '');
+        const initialDiscipline = config.disciplines.find(d => d.id === hash) || config.disciplines[0];
+        
+        initTagFilter();
+        switchDiscipline(initialDiscipline.id);
         initModal();
+        
+        // Handle browser back/forward
+        window.addEventListener('hashchange', () => {
+            const newHash = location.hash.replace('#', '');
+            const discipline = config.disciplines.find(d => d.id === newHash);
+            if (discipline && discipline.id !== currentDiscipline?.id) {
+                switchDiscipline(discipline.id);
+            }
+        });
     } catch (error) {
         console.error('Error loading config:', error);
         showError();
     }
 });
 
-function renderPage() {
-    // Site title
-    if (config.site) {
-        document.getElementById('site-title').textContent = config.site.title || '';
-        document.getElementById('site-subtitle').textContent = config.site.subtitle || '';
-        document.title = config.site.title || 'Research Library';
+// ===== Navigation =====
+function renderNav() {
+    const nav = document.getElementById('discipline-nav');
+    if (!config.disciplines || config.disciplines.length <= 1) {
+        nav.style.display = 'none';
+        return;
     }
+    
+    nav.innerHTML = config.disciplines.map(d => `
+        <button class="discipline-btn" data-discipline="${d.id}" onclick="switchDiscipline('${d.id}')">
+            <span class="discipline-icon">${d.icon || '📚'}</span>
+            <span class="discipline-name">${escapeHtml(d.name)}</span>
+            <span class="discipline-count">${d.articles ? d.articles.length : 0}</span>
+        </button>
+    `).join('');
+}
 
+function switchDiscipline(id) {
+    const discipline = config.disciplines.find(d => d.id === id);
+    if (!discipline) return;
+    
+    currentDiscipline = discipline;
+    
+    // Update URL hash without triggering hashchange
+    history.replaceState(null, '', '#' + id);
+    
+    // Update active nav button
+    document.querySelectorAll('.discipline-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.discipline === id);
+    });
+    
+    // Update subtitle
+    document.getElementById('site-subtitle').textContent = discipline.subtitle || '';
+    
+    // Clear filters
+    clearAllFilters();
+    
+    // Render content for this discipline
+    renderPage();
+}
+
+function renderPage() {
+    if (!currentDiscipline) return;
+    
+    const articles = currentDiscipline.articles || [];
+    
     // Tag cloud
-    if (config.articles && config.articles.length) {
+    if (articles.length) {
+        document.getElementById('tag-cloud').style.display = '';
         renderTagCloud();
+    } else {
+        document.getElementById('tag-cloud').style.display = 'none';
     }
 
     // Articles table
-    if (config.articles && config.articles.length) {
+    if (articles.length) {
         const tbody = document.getElementById('articles-body');
-        tbody.innerHTML = config.articles.map(article => renderArticleRow(article)).join('');
+        tbody.innerHTML = articles.map(article => renderArticleRow(article)).join('');
+        document.querySelector('.table-wrapper').style.display = '';
         initDescriptionExpand();
-        initTagFilter();
     } else {
+        document.querySelector('.table-wrapper').style.display = 'none';
         showEmptyState();
     }
 }
 
 function renderArticleRow(article) {
-    const pdfPath = (config.pdfBasePath || './') + article.pdf;
+    const pdfPath = (currentDiscipline.pdfBasePath || './') + article.pdf;
     const tags = article.tags || {};
     
     return `
@@ -71,7 +138,6 @@ function renderArticleRow(article) {
 }
 
 function renderTagGroup(tagArray, className) {
-    // Filter out empty arrays and "-" tags
     if (!tagArray || !tagArray.length) return '';
     
     const filteredTags = tagArray.filter(tag => tag && tag.trim() !== '' && tag.trim() !== '—' && tag.trim() !== '-');
@@ -86,7 +152,6 @@ function initDescriptionExpand() {
     const descriptions = document.querySelectorAll('.article-description');
     
     descriptions.forEach(desc => {
-        // Check if text overflows (more than 8 lines)
         const lineHeight = parseFloat(getComputedStyle(desc).lineHeight);
         const maxHeight = lineHeight * 8;
         
@@ -95,7 +160,6 @@ function initDescriptionExpand() {
         }
     });
 
-    // Toggle expand on hint click
     document.querySelectorAll('.expand-hint').forEach(hint => {
         hint.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -118,12 +182,13 @@ const TAG_GROUPS = [
 
 function collectTagStats() {
     const stats = {};
+    const articles = currentDiscipline?.articles || [];
     
     TAG_GROUPS.forEach(group => {
         stats[group.key] = {};
     });
     
-    config.articles.forEach(article => {
+    articles.forEach(article => {
         const tags = article.tags || {};
         TAG_GROUPS.forEach(group => {
             const tagArray = tags[group.key] || [];
@@ -147,7 +212,6 @@ function renderTagCloud() {
         const groupStats = stats[group.key];
         const sortedTags = Object.entries(groupStats)
             .sort((a, b) => {
-                // Sort by count descending, then alphabetically
                 if (b[1] !== a[1]) return b[1] - a[1];
                 return a[0].localeCompare(b[0]);
             })
@@ -155,7 +219,7 @@ function renderTagCloud() {
         
         if (sortedTags.length === 0) return '';
         
-        const needsCollapse = sortedTags.length > 12; // Roughly 2 rows
+        const needsCollapse = sortedTags.length > 12;
         
         return `
             <div class="tag-cloud-row ${needsCollapse ? 'collapsed' : ''}" data-group="${group.key}">
@@ -182,13 +246,12 @@ function toggleTagGroup(btn) {
     btn.textContent = isCollapsed ? `+${totalTags - 12} ещё` : 'Свернуть';
 }
 
-// Multi-tag filter - stores active tags by group
-let activeFilters = {}; // { groupKey: Set of tags }
+// Multi-tag filter
+let activeFilters = {};
 
 function initTagFilter() {
     const resetBtn = document.getElementById('reset-filter');
     
-    // Click on tag cloud tags
     document.getElementById('tag-cloud-groups').addEventListener('click', (e) => {
         const tagEl = e.target.closest('.tag');
         if (!tagEl) return;
@@ -199,22 +262,18 @@ function initTagFilter() {
         toggleTagFilter(tagValue, groupKey, tagEl);
     });
     
-    // Reset button
     resetBtn.addEventListener('click', clearAllFilters);
 }
 
 function toggleTagFilter(tagValue, groupKey, tagEl) {
-    // Initialize set for group if not exists
     if (!activeFilters[groupKey]) {
         activeFilters[groupKey] = new Set();
     }
     
-    // Toggle tag in the set
     if (activeFilters[groupKey].has(tagValue)) {
         activeFilters[groupKey].delete(tagValue);
         tagEl.classList.remove('active');
         
-        // Clean up empty groups
         if (activeFilters[groupKey].size === 0) {
             delete activeFilters[groupKey];
         }
@@ -223,14 +282,10 @@ function toggleTagFilter(tagValue, groupKey, tagEl) {
         tagEl.classList.add('active');
     }
     
-    // Update reset button visibility
     const hasActiveFilters = Object.keys(activeFilters).length > 0;
     document.getElementById('reset-filter').style.display = hasActiveFilters ? 'block' : 'none';
     
-    // Update active filter count display
     updateFilterCount();
-    
-    // Apply filters to table
     applyMultiFilter();
 }
 
@@ -246,6 +301,7 @@ function updateFilterCount() {
 function applyMultiFilter() {
     const rows = document.querySelectorAll('#articles-body tr');
     const hasActiveFilters = Object.keys(activeFilters).length > 0;
+    const articles = currentDiscipline?.articles || [];
     
     rows.forEach(row => {
         if (!hasActiveFilters) {
@@ -254,7 +310,7 @@ function applyMultiFilter() {
         }
         
         const articleId = parseInt(row.dataset.id);
-        const article = config.articles.find(a => a.id === articleId);
+        const article = articles.find(a => a.id === articleId);
         
         if (!article) {
             row.classList.add('hidden');
@@ -263,13 +319,10 @@ function applyMultiFilter() {
         
         const tags = article.tags || {};
         
-        // Article must match ALL active filter groups (AND between groups)
-        // Within a group, article must match ALL selected tags (AND within group)
         let matchesAllGroups = true;
         
         for (const [groupKey, selectedTags] of Object.entries(activeFilters)) {
             const articleTags = tags[groupKey] || [];
-            // Check that article has ALL selected tags in this group
             const matchesGroup = [...selectedTags].every(selectedTag => 
                 articleTags.some(t => t && t.trim() === selectedTag)
             );
@@ -283,10 +336,7 @@ function applyMultiFilter() {
         row.classList.toggle('hidden', !matchesAllGroups);
     });
     
-    // Update visible count
     updateVisibleCount();
-    
-    // Update tag availability based on visible articles
     updateTagAvailability();
 }
 
@@ -294,9 +344,8 @@ function updateVisibleCount() {
     const totalRows = document.querySelectorAll('#articles-body tr').length;
     const visibleRows = document.querySelectorAll('#articles-body tr:not(.hidden)').length;
     
-    // Update subtitle with count if filtering
     const subtitle = document.getElementById('site-subtitle');
-    const originalSubtitle = config.site?.subtitle || '';
+    const originalSubtitle = currentDiscipline?.subtitle || '';
     
     if (Object.keys(activeFilters).length > 0) {
         subtitle.textContent = `${originalSubtitle} — показано ${visibleRows} из ${totalRows}`;
@@ -308,33 +357,24 @@ function updateVisibleCount() {
 function clearAllFilters() {
     activeFilters = {};
     
-    // Remove active and disabled states from all tags
     document.querySelectorAll('.tag-cloud .tag').forEach(t => {
         t.classList.remove('active');
         t.classList.remove('disabled');
     });
     
-    // Hide reset button
     document.getElementById('reset-filter').style.display = 'none';
     
-    // Show all rows
     document.querySelectorAll('#articles-body tr').forEach(row => {
         row.classList.remove('hidden');
     });
     
-    // Restore original subtitle
     const subtitle = document.getElementById('site-subtitle');
-    subtitle.textContent = config.site?.subtitle || '';
+    subtitle.textContent = currentDiscipline?.subtitle || '';
 }
 
-/**
- * Update tag availability - disable tags that would result in zero articles
- * and update counts to show how many articles would match
- */
 function updateTagAvailability() {
     const hasActiveFilters = Object.keys(activeFilters).length > 0;
     
-    // If no filters active, restore original counts and enable all tags
     if (!hasActiveFilters) {
         restoreOriginalCounts();
         document.querySelectorAll('.tag-cloud .tag').forEach(t => {
@@ -343,13 +383,11 @@ function updateTagAvailability() {
         return;
     }
     
-    // For each tag, calculate how many articles would match if selected
     document.querySelectorAll('.tag-cloud .tag').forEach(tagEl => {
         const tagValue = tagEl.dataset.tag;
         const groupKey = tagEl.dataset.group;
         const countEl = tagEl.querySelector('.tag-count');
         
-        // If this tag is already active, show current visible count
         if (activeFilters[groupKey]?.has(tagValue)) {
             tagEl.classList.remove('disabled');
             if (countEl) {
@@ -359,22 +397,16 @@ function updateTagAvailability() {
             return;
         }
         
-        // Calculate how many articles would match if this tag is added
         const potentialCount = countArticlesWithTag(tagValue, groupKey);
         
-        // Update the count display
         if (countEl) {
             countEl.textContent = potentialCount;
         }
         
-        // Disable if zero results
         tagEl.classList.toggle('disabled', potentialCount === 0);
     });
 }
 
-/**
- * Restore original tag counts (total articles with each tag)
- */
 function restoreOriginalCounts() {
     const stats = collectTagStats();
     
@@ -389,14 +421,12 @@ function restoreOriginalCounts() {
     });
 }
 
-/**
- * Count articles that currently have this tag (among visible articles)
- */
 function countArticlesWithTagInCurrent(tagValue, groupKey) {
     let count = 0;
     document.querySelectorAll('#articles-body tr:not(.hidden)').forEach(row => {
         const articleId = parseInt(row.dataset.id);
-        const article = config.articles.find(a => a.id === articleId);
+        const articles = currentDiscipline?.articles || [];
+        const article = articles.find(a => a.id === articleId);
         if (!article) return;
         
         const tags = article.tags || {};
@@ -408,11 +438,7 @@ function countArticlesWithTagInCurrent(tagValue, groupKey) {
     return count;
 }
 
-/**
- * Count how many articles would match if adding a tag to current filters
- */
 function countArticlesWithTag(tagValue, groupKey) {
-    // Create a copy of active filters with the new tag added
     const testFilters = {};
     for (const [key, tags] of Object.entries(activeFilters)) {
         testFilters[key] = new Set(tags);
@@ -423,9 +449,9 @@ function countArticlesWithTag(tagValue, groupKey) {
     }
     testFilters[groupKey].add(tagValue);
     
-    // Count articles matching these filters
     let count = 0;
-    config.articles.forEach(article => {
+    const articles = currentDiscipline?.articles || [];
+    articles.forEach(article => {
         const tags = article.tags || {};
         
         let matchesAll = true;
@@ -467,7 +493,6 @@ function openPdf(pdfPath) {
     const modal = document.getElementById('pdf-modal');
     const viewer = document.getElementById('pdf-viewer');
     
-    // Use browser's built-in PDF viewer
     viewer.src = pdfPath;
     modal.classList.add('active');
     document.body.style.overflow = 'hidden';
@@ -489,30 +514,20 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-/**
- * Simple markdown parser for descriptions
- * Supports: **bold**, *italic*, \n for line breaks
- */
 function parseMarkdown(text) {
     if (!text) return '';
     
-    // First escape HTML
     let html = escapeHtml(text);
     
-    // Convert markdown to HTML
-    // Bold: **text** or __text__
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/__(.+?)__/g, '<strong>$1</strong>');
     
-    // Italic: *text* or _text_
     html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
     html = html.replace(/_(.+?)_/g, '<em>$1</em>');
     
-    // Line breaks: \n\n for paragraphs, \n for <br>
     html = html.replace(/\\n\\n/g, '</p><p>');
     html = html.replace(/\\n/g, '<br>');
     
-    // Wrap in paragraph if contains paragraph breaks
     if (html.includes('</p><p>')) {
         html = '<p>' + html + '</p>';
     }
@@ -526,7 +541,7 @@ function showEmptyState() {
             <td colspan="3">
                 <div class="empty-state">
                     <div class="empty-state-icon">📚</div>
-                    <p>Нет статей. Добавьте статьи в config.json</p>
+                    <p>Нет статей в этом разделе. Добавьте статьи в config.json</p>
                 </div>
             </td>
         </tr>
