@@ -49,13 +49,16 @@ function renderNav() {
         return;
     }
     
-    nav.innerHTML = config.disciplines.map(d => `
-        <button class="discipline-btn" data-discipline="${d.id}" onclick="switchDiscipline('${d.id}')">
-            <span class="discipline-icon">${d.icon || '📚'}</span>
-            <span class="discipline-name">${escapeHtml(d.name)}</span>
-            <span class="discipline-count">${d.articles ? d.articles.length : 0}</span>
-        </button>
-    `).join('');
+    nav.innerHTML = config.disciplines.map(d => {
+        const totalCount = (d.articles ? d.articles.length : 0) + (d.externalLinks ? d.externalLinks.length : 0);
+        return `
+            <button class="discipline-btn" data-discipline="${d.id}" onclick="switchDiscipline('${d.id}')">
+                <span class="discipline-icon">${d.icon || '📚'}</span>
+                <span class="discipline-name">${escapeHtml(d.name)}</span>
+                <span class="discipline-count">${totalCount}</span>
+            </button>
+        `;
+    }).join('');
 }
 
 function switchDiscipline(id) {
@@ -82,27 +85,68 @@ function switchDiscipline(id) {
     renderPage();
 }
 
+// Helper: get all items (articles + externalLinks) for tag operations
+function getAllItems() {
+    const articles = currentDiscipline?.articles || [];
+    const externalLinks = currentDiscipline?.externalLinks || [];
+    return [...articles, ...externalLinks];
+}
+
 function renderPage() {
     if (!currentDiscipline) return;
     
     const articles = currentDiscipline.articles || [];
+    const externalLinks = currentDiscipline.externalLinks || [];
+    const hasAnyContent = articles.length || externalLinks.length;
     
+    // Anchor navigation to external section
+    let anchorNav = document.getElementById('anchor-nav');
+    if (!anchorNav) {
+        anchorNav = document.createElement('div');
+        anchorNav.id = 'anchor-nav';
+        anchorNav.className = 'anchor-nav';
+        const tagCloud = document.getElementById('tag-cloud');
+        tagCloud.parentNode.insertBefore(anchorNav, tagCloud);
+    }
+    if (externalLinks.length) {
+        anchorNav.style.display = '';
+        anchorNav.innerHTML = `<a href="#external-section" class="anchor-link anchor-link-external">🌐 Статьи, обзоры и видео <span class="anchor-count">${externalLinks.length}</span> ↓</a>`;
+    } else {
+        anchorNav.style.display = 'none';
+    }
+
     // Tag cloud
-    if (articles.length) {
+    if (hasAnyContent) {
         document.getElementById('tag-cloud').style.display = '';
         renderTagCloud();
     } else {
         document.getElementById('tag-cloud').style.display = 'none';
     }
 
-    // Articles table
+    // Articles table (PDFs)
     if (articles.length) {
         const tbody = document.getElementById('articles-body');
         tbody.innerHTML = articles.map(article => renderArticleRow(article)).join('');
         document.querySelector('.table-wrapper').style.display = '';
-        initDescriptionExpand();
     } else {
         document.querySelector('.table-wrapper').style.display = 'none';
+    }
+
+    // External links table
+    if (externalLinks.length) {
+        document.getElementById('external-section').style.display = '';
+        document.getElementById('external-table-wrapper').style.display = '';
+        const extBody = document.getElementById('external-body');
+        extBody.innerHTML = externalLinks.map(item => renderExternalRow(item)).join('');
+    } else {
+        document.getElementById('external-section').style.display = 'none';
+        document.getElementById('external-table-wrapper').style.display = 'none';
+    }
+
+    // Init expand for all descriptions (both tables)
+    if (hasAnyContent) {
+        initDescriptionExpand();
+    } else {
         showEmptyState();
     }
 }
@@ -121,6 +165,56 @@ function renderArticleRow(article) {
             <td class="col-title">
                 <div class="article-title">${escapeHtml(article.title)}</div>
                 <div class="article-description">${parseMarkdown(article.description)}</div>
+                <div class="expand-hint">▼ Показать полностью</div>
+            </td>
+            <td class="col-tags">
+                <div class="tags-combined">
+                    ${renderTagGroup(tags.companies, 'companies')}
+                    ${renderTagGroup(tags.researchType, 'research')}
+                    ${renderTagGroup(tags.problem, 'problem')}
+                    ${renderTagGroup(tags.application, 'application')}
+                    ${renderTagGroup(tags.technologies, 'tech')}
+                    ${renderTagGroup(tags.additional, 'additional')}
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function renderExternalRow(item) {
+    let icon, btnClass, tooltip;
+    if (item.type === 'video') {
+        icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><polygon points="6,3 20,12 6,21"/></svg>';
+        btnClass = 'link-btn-video';
+        tooltip = 'Открыть видео';
+    } else if (item.type === 'pdf') {
+        icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg>';
+        btnClass = 'link-btn-pdf';
+        tooltip = 'Открыть PDF';
+    } else {
+        icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+        btnClass = 'link-btn-article';
+        tooltip = 'Открыть статью';
+    }
+    const tags = item.tags || {};
+    
+    // PDF type uses local file + modal, others use external URL
+    let btnHtml;
+    if (item.type === 'pdf') {
+        const pdfPath = (currentDiscipline.pdfBasePath || './') + item.pdf;
+        btnHtml = `<button class="link-btn ${btnClass}" onclick="openPdf('${pdfPath}')" title="${tooltip}">${icon}</button>`;
+    } else {
+        btnHtml = `<a class="link-btn ${btnClass}" href="${escapeHtml(item.url)}" target="_blank" rel="noopener noreferrer" title="${tooltip}">${icon}</a>`;
+    }
+
+    return `
+        <tr data-id="${item.id}">
+            <td class="col-pdf">
+                ${btnHtml}
+            </td>
+            <td class="col-title">
+                <div class="article-title">${escapeHtml(item.title)}</div>
+                <div class="article-description">${parseMarkdown(item.description)}</div>
                 <div class="expand-hint">▼ Показать полностью</div>
             </td>
             <td class="col-tags">
@@ -182,14 +276,14 @@ const TAG_GROUPS = [
 
 function collectTagStats() {
     const stats = {};
-    const articles = currentDiscipline?.articles || [];
+    const allItems = getAllItems();
     
     TAG_GROUPS.forEach(group => {
         stats[group.key] = {};
     });
     
-    articles.forEach(article => {
-        const tags = article.tags || {};
+    allItems.forEach(item => {
+        const tags = item.tags || {};
         TAG_GROUPS.forEach(group => {
             const tagArray = tags[group.key] || [];
             tagArray.forEach(tag => {
@@ -299,25 +393,27 @@ function updateFilterCount() {
 }
 
 function applyMultiFilter() {
-    const rows = document.querySelectorAll('#articles-body tr');
     const hasActiveFilters = Object.keys(activeFilters).length > 0;
-    const articles = currentDiscipline?.articles || [];
+    const allItems = getAllItems();
     
-    rows.forEach(row => {
+    // Filter both tables
+    const allRows = document.querySelectorAll('#articles-body tr, #external-body tr');
+    
+    allRows.forEach(row => {
         if (!hasActiveFilters) {
             row.classList.remove('hidden');
             return;
         }
         
-        const articleId = parseInt(row.dataset.id);
-        const article = articles.find(a => a.id === articleId);
+        const itemId = parseInt(row.dataset.id);
+        const item = allItems.find(a => a.id === itemId);
         
-        if (!article) {
+        if (!item) {
             row.classList.add('hidden');
             return;
         }
         
-        const tags = article.tags || {};
+        const tags = item.tags || {};
         
         let matchesAllGroups = true;
         
@@ -338,11 +434,12 @@ function applyMultiFilter() {
     
     updateVisibleCount();
     updateTagAvailability();
+    updateAnchorCount();
 }
 
 function updateVisibleCount() {
-    const totalRows = document.querySelectorAll('#articles-body tr').length;
-    const visibleRows = document.querySelectorAll('#articles-body tr:not(.hidden)').length;
+    const totalRows = document.querySelectorAll('#articles-body tr, #external-body tr').length;
+    const visibleRows = document.querySelectorAll('#articles-body tr:not(.hidden), #external-body tr:not(.hidden)').length;
     
     const subtitle = document.getElementById('site-subtitle');
     const originalSubtitle = currentDiscipline?.subtitle || '';
@@ -364,12 +461,29 @@ function clearAllFilters() {
     
     document.getElementById('reset-filter').style.display = 'none';
     
-    document.querySelectorAll('#articles-body tr').forEach(row => {
+    document.querySelectorAll('#articles-body tr, #external-body tr').forEach(row => {
         row.classList.remove('hidden');
     });
     
     const subtitle = document.getElementById('site-subtitle');
     subtitle.textContent = currentDiscipline?.subtitle || '';
+    updateAnchorCount();
+}
+
+function updateAnchorCount() {
+    const anchorNav = document.getElementById('anchor-nav');
+    if (!anchorNav) return;
+    const countEl = anchorNav.querySelector('.anchor-count');
+    if (!countEl) return;
+
+    const visibleExternal = document.querySelectorAll('#external-body tr:not(.hidden)').length;
+    const totalExternal = document.querySelectorAll('#external-body tr').length;
+
+    if (Object.keys(activeFilters).length > 0) {
+        countEl.textContent = `${visibleExternal}/${totalExternal}`;
+    } else {
+        countEl.textContent = totalExternal;
+    }
 }
 
 function updateTagAvailability() {
@@ -423,13 +537,13 @@ function restoreOriginalCounts() {
 
 function countArticlesWithTagInCurrent(tagValue, groupKey) {
     let count = 0;
-    document.querySelectorAll('#articles-body tr:not(.hidden)').forEach(row => {
-        const articleId = parseInt(row.dataset.id);
-        const articles = currentDiscipline?.articles || [];
-        const article = articles.find(a => a.id === articleId);
-        if (!article) return;
+    const allItems = getAllItems();
+    document.querySelectorAll('#articles-body tr:not(.hidden), #external-body tr:not(.hidden)').forEach(row => {
+        const itemId = parseInt(row.dataset.id);
+        const item = allItems.find(a => a.id === itemId);
+        if (!item) return;
         
-        const tags = article.tags || {};
+        const tags = item.tags || {};
         const groupTags = tags[groupKey] || [];
         if (groupTags.some(t => t && t.trim() === tagValue)) {
             count++;
@@ -450,9 +564,9 @@ function countArticlesWithTag(tagValue, groupKey) {
     testFilters[groupKey].add(tagValue);
     
     let count = 0;
-    const articles = currentDiscipline?.articles || [];
-    articles.forEach(article => {
-        const tags = article.tags || {};
+    const allItems = getAllItems();
+    allItems.forEach(item => {
+        const tags = item.tags || {};
         
         let matchesAll = true;
         for (const [filterGroup, selectedTags] of Object.entries(testFilters)) {
@@ -556,3 +670,24 @@ function showError() {
         </div>
     `;
 }
+
+// ===== Scroll to Top =====
+function initScrollToTop() {
+    const btn = document.getElementById('scroll-to-top');
+    if (!btn) return;
+
+    window.addEventListener('scroll', () => {
+        btn.classList.toggle('visible', window.scrollY > 400);
+    });
+
+    btn.addEventListener('click', () => {
+        const tagCloud = document.getElementById('tag-cloud');
+        if (tagCloud) {
+            tagCloud.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initScrollToTop);

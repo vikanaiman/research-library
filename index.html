@@ -1,65 +1,102 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
-    <meta name="googlebot" content="noindex, nofollow">
-    <meta name="bingbot" content="noindex, nofollow">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="googlebot" content="noindex, nofollow" />
+    <meta name="bingbot" content="noindex, nofollow" />
     <title>Research Library</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
     <div class="gradient-bg"></div>
-    
+
     <header class="header">
-        <div class="logo" id="site-title">Research Library</div>
-        <div class="subtitle" id="site-subtitle">Библиотека исследований команды</div>
+      <div class="logo" id="site-title">Research Library</div>
+      <div class="subtitle" id="site-subtitle">
+        Библиотека исследований команды
+      </div>
     </header>
 
     <nav class="discipline-nav" id="discipline-nav">
-        <!-- Discipline buttons will be injected from config.json -->
+      <!-- Discipline buttons will be injected from config.json -->
     </nav>
 
     <main class="container">
-        <!-- Tag Cloud Filter -->
-        <section class="tag-cloud" id="tag-cloud">
-            <div class="tag-cloud-header">
-                <h2>Фильтр по тегам</h2>
-                <button class="reset-filter" id="reset-filter" style="display: none;">✕ Сбросить фильтр</button>
-            </div>
-            <div class="tag-cloud-groups" id="tag-cloud-groups">
-                <!-- Tag groups will be injected from config.json -->
-            </div>
-        </section>
-
-        <div class="table-wrapper">
-            <table class="articles-table" id="articles-table">
-                <thead>
-                    <tr>
-                        <th class="col-pdf">PDF</th>
-                        <th class="col-title">Название и описание</th>
-                        <th class="col-tags">Теги</th>
-                    </tr>
-                </thead>
-                <tbody id="articles-body">
-                    <!-- Articles will be injected from config.json -->
-                </tbody>
-            </table>
+      <!-- Tag Cloud Filter -->
+      <section class="tag-cloud" id="tag-cloud">
+        <div class="tag-cloud-header">
+          <h2>Фильтр по тегам</h2>
+          <button class="reset-filter" id="reset-filter" style="display: none">
+            ✕ Сбросить фильтр
+          </button>
         </div>
+        <div class="tag-cloud-groups" id="tag-cloud-groups">
+          <!-- Tag groups will be injected from config.json -->
+        </div>
+      </section>
+
+      <div class="table-wrapper">
+        <table class="articles-table" id="articles-table">
+          <thead>
+            <tr>
+              <th class="col-pdf">PDF</th>
+              <th class="col-title">Название и описание</th>
+              <th class="col-tags">Теги</th>
+            </tr>
+          </thead>
+          <tbody id="articles-body">
+            <!-- Articles will be injected from config.json -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- External Links Section -->
+      <div class="section-divider" id="external-section" style="display: none">
+        <h2 class="section-title">🌐 Статьи, обзоры и видео</h2>
+      </div>
+      <div
+        class="table-wrapper external-table-wrapper"
+        id="external-table-wrapper"
+        style="display: none"
+      >
+        <table class="articles-table" id="external-table">
+          <thead>
+            <tr>
+              <th class="col-pdf">Ссылка</th>
+              <th class="col-title">Название и описание</th>
+              <th class="col-tags">Теги</th>
+            </tr>
+          </thead>
+          <tbody id="external-body">
+            <!-- External links will be injected from config.json -->
+          </tbody>
+        </table>
+      </div>
     </main>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-to-top" id="scroll-to-top" title="Наверх">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="18 15 12 9 6 15"/>
+      </svg>
+    </button>
 
     <!-- PDF Preview Modal -->
     <div class="modal" id="pdf-modal">
-        <div class="modal-content">
-            <button class="modal-close" id="modal-close">&times;</button>
-            <iframe id="pdf-viewer" src="" frameborder="0"></iframe>
-        </div>
+      <div class="modal-content">
+        <button class="modal-close" id="modal-close">&times;</button>
+        <iframe id="pdf-viewer" src="" frameborder="0"></iframe>
+      </div>
     </div>
 
     <script src="app.js"></script>
-</body>
+  </body>
 </html>
