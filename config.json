@@ -240,10 +240,11 @@
             ],
             "application": [
               "Conversational AI & Agents",
-              "Search & Navigation"
+              "Search & Navigation",
+              "User Generated Content"
             ],
             "technologies": ["BM25", "BiDAF", "Embeddings", "LSTM", "TF-IDF"],
-            "additional": ["Crowdsourcing", "User Generated Content"]
+            "additional": ["Crowdsourcing"]
           }
         },
         {
@@ -2358,7 +2359,7 @@
               "Внедрение и бизнес-эффективность"
             ],
             "application": ["RecSys & Personalization", "Growth & Pricing"],
-            "technologies": ["C5.0", "Neural Networks", "Random Forest", "SVM"],
+            "technologies": ["C5.0", "Deep Learning", "Random Forest", "SVM"],
             "additional": ["Buy Box", "Algorithmic Bias"]
           }
         },
@@ -2380,10 +2381,7 @@
             ],
             "application": ["Conversational AI & Agents"],
             "technologies": ["NLP"],
-            "additional": [
-              "Customer Experience (CX / CSAT)",
-              "Customer Satisfaction"
-            ]
+            "additional": ["Customer Experience (CX / CSAT)"]
           }
         },
         {
@@ -4898,7 +4896,7 @@
             "technologies": ["DeepEval", "G-Eval", "RAGAS"],
             "additional": [
               "LLM-as-a-judge",
-              "LLM Evaluation",
+              "Evaluation Metrics",
               "Red Teaming",
               "MLOps",
               "Confident AI"
@@ -4923,7 +4921,6 @@
             "additional": [
               "LLM-as-a-judge",
               "Evaluation Metrics",
-              "LLM Evaluation",
               "Red Teaming",
               "Giskard"
             ]
@@ -5015,7 +5012,6 @@
             "application": ["Conversational AI & Agents", "Ops & Security"],
             "technologies": ["BLEU", "ROUGE"],
             "additional": [
-              "LLM Evaluation",
               "LLM-as-a-judge",
               "Benchmarks",
               "Evaluation Metrics",
@@ -5063,12 +5059,7 @@
             ],
             "application": ["Conversational AI & Agents", "Ops & Security"],
             "technologies": ["RAG"],
-            "additional": [
-              "LLM-as-a-judge",
-              "LLM Evaluation",
-              "Evaluation Metrics",
-              "MLOps"
-            ]
+            "additional": ["LLM-as-a-judge", "Evaluation Metrics", "MLOps"]
           }
         },
         {
@@ -5145,7 +5136,6 @@
             ],
             "technologies": ["BLEU", "ROUGE", "Ragas"],
             "additional": [
-              "LLM Evaluation",
               "LLM-as-a-judge",
               "Evaluation Metrics",
               "RLHF",
@@ -5198,7 +5188,6 @@
               "Evaluation Metrics",
               "LLM-as-a-judge",
               "MLOps",
-              "LLM Evaluation",
               "Clarifai"
             ]
           }
@@ -5261,7 +5250,6 @@
               "Open-source",
               "LLM-as-a-judge",
               "Evaluation Metrics",
-              "LLM Evaluation",
               "MLOps",
               "Confident AI"
             ]
@@ -5285,7 +5273,7 @@
             "technologies": [],
             "additional": [
               "LLM-as-a-judge",
-              "LLM Evaluation",
+              "Evaluation Metrics",
               "MLOps",
               "User Feedback",
               "Langfuse"
@@ -5391,7 +5379,7 @@
             "technologies": ["BLEU", "ROUGE"],
             "additional": [
               "LLM-as-a-judge",
-              "LLM Evaluation",
+              "Evaluation Metrics",
               "LLM Observability",
               "MLOps"
             ]
@@ -5454,7 +5442,6 @@
             "technologies": ["RAG", "Embeddings", "BLEU", "ROUGE"],
             "additional": [
               "LLM-as-a-judge",
-              "LLM Evaluation",
               "Evaluation Metrics",
               "Red Teaming",
               "Synthetic Data",
@@ -5683,7 +5670,7 @@
             "application": ["Conversational AI & Agents", "Ops & Security"],
             "technologies": ["GPT", "LangSmith", "Metabase"],
             "additional": [
-              "LLM Evaluation",
+              "Evaluation Metrics",
               "LLM-as-a-judge",
               "Synthetic Data",
               "Fine-tuning",
